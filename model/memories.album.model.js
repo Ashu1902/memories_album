@@ -1,32 +1,27 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const memoryAlbumSchema = new Schema({
+const memoriesAlbumSchema = new Schema({
+    albumName: {
+        type: String,
+        required: true
+    },
+    images: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Upload',
+        required: true
+    }],
+    passingDate: { 
+        type: Date,
+        required: true
+    },
     user: {
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: true
-    },
-    passingDate: {
-        type: Date,
-        required: true
-    },
-    dateOfBirth: {
-        type: Date,
-        required: true
-    },
-    imagePath: String,
-    image_type: {
-        type: Number,
-        enum: [0, 1],
-        default: 0
-    },
-    isDeleted: {
-        type: Boolean,
-        default: false
     }
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('MemoryAlbum', memoryAlbumSchema);
+module.exports = mongoose.model('MemoriesAlbum', memoriesAlbumSchema);

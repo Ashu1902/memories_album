@@ -12,57 +12,35 @@ exports.validateDeleteImage = [
     }
     return true;
   }),
-  body("chooseModel")
-    .isNumeric()
-    .withMessage("Image type must be a number 0 or 1")
-    .isIn([0, 1])
-    .withMessage("give 0 for normal image and 1 for album images")
-    .toInt(),
 ];
 
 exports.validateUploadImageFields = [
+  body("albumName")
+    .notEmpty()
+    .withMessage("Album name is required")
+    .isString()
+    .withMessage("Album name must be a string"),
   body("name")
     .notEmpty()
     .withMessage("Name is required")
     .isString()
     .withMessage("Name must be a string"),
-
   body("description")
     .notEmpty()
     .withMessage("Description is required")
     .isString()
     .withMessage("Description must be a string"),
-];
-
-exports.validateUserImages = [
-  body("chooseModel")
-    .isNumeric()
-    .withMessage("Image type must be a number 0 or 1")
-    .isIn([0, 1])
-    .withMessage("give 0 for normal image and 1 for album images")
-    .toInt(),
-];
-
-exports.validateUploadMemoryAlbumFields = [
-  body("passingDate")
-    .notEmpty()
-    .withMessage("Passing date is required")
-    .isISO8601()
-    .toDate()
-    .withMessage("Invalid passing date format"),
-
-  body("dateOfBirth")
-    .notEmpty()
-    .withMessage("Date of birth is required")
-    .isISO8601()
-    .toDate()
-    .withMessage("Invalid date of birth format"),
   body("image_type")
     .isNumeric()
     .withMessage("Image type must be a number 0 or 1")
     .isIn([0, 1])
     .withMessage("give 0 for public and 1 for private")
     .toInt(),
+  body("passingDate")
+    .notEmpty()
+    .withMessage("Passing date is required")
+    .toDate()
+    .withMessage("Passing date must be a valid date"),
 ];
 
 exports.validateShareImageEmail = [
@@ -71,6 +49,19 @@ exports.validateShareImageEmail = [
     .withMessage("Email is required")
     .isEmail()
     .withMessage("Invalid email address"),
+  (req, res, next) => {
+    const albumId = req.body.albumId;
+    const imageId = req.body.imageId;
+
+    if (!albumId && !imageId) {
+      return res.status(400).json({ message: "Either albumId or imageId is required" });
+    }
+
+    if (albumId && imageId) {
+      return res.status(400).json({ message: "you can only share either an image or an album, not both at a time" });
+    }
+    next();
+  },
 ];
 
 exports.validateUserSignupInput = [

@@ -6,14 +6,22 @@ const uploadSchema = new Schema({
         type: String,
         required: true
     },
+    albumName: {
+        type: String,
+        required: false
+    },
     description: {
         type: String,
         required: true
     },
-    imagePath: String, // New field to store the image path
+    passingDate: {
+        type: Date, 
+        required: false
+    },
+    imagePath: String,
     user: {
         type: Schema.Types.ObjectId,
-        ref: 'User', // Reference to the User model
+        ref: 'User',
         required: true
     },
     isDeleted: {
@@ -28,7 +36,7 @@ const uploadSchema = new Schema({
     likes: [{
         user: {
             type: Schema.Types.ObjectId,
-            ref: 'User' // Reference to the User model for the user who made the comment
+            ref: 'User'
         },
         createdAt: {
             type: Date,
@@ -38,7 +46,7 @@ const uploadSchema = new Schema({
     comments: [{
         user: {
             type: Schema.Types.ObjectId,
-            ref: 'User' // Reference to the User model for the user who made the comment
+            ref: 'User' 
         },
         text: {
             type: String,
