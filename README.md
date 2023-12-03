@@ -28,8 +28,6 @@ Clone the repository:
 
 ### API Documentation
 
-https://api.postman.com/collections/29430641-1a18661a-32ea-469e-85a7-79b0d37236c9?access_key=PMAT-01H9GS9D2D4ZAHHGN0CKV46JPC
-
 
 ### env
 
