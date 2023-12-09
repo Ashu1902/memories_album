@@ -1,5 +1,18 @@
 const { body, validationResult } = require("express-validator");
 
+exports.shareAlbumValidation = [
+  body('albumId')
+    .notEmpty()
+    .withMessage('Album ID is required')
+    .isString()
+    .withMessage('Album ID must be a string'),
+  body('userEmail')
+    .notEmpty()
+    .withMessage('User email is required')
+    .isEmail()
+    .withMessage('Invalid email format'),
+];
+
 exports.deleteImageAlbumValidation = [
   body('albumId')
     .notEmpty()
