@@ -1,6 +1,6 @@
 const User = require('../model/User');
 const bcrypt = require('bcryptjs');
-const { generateToken } = require('../middleware/authToken')
+const { generateToken, verifyToken  } = require('../middleware/authToken')
 const jwt = require('jsonwebtoken');
 const messageResponse = require('../Responses/messageRespons');
 const QRCode = require('../model/QRCode');
@@ -10,6 +10,58 @@ const path = require('path');
 const Upload = require('../model/Upload')
 const { sendEmailURL } = require('../services/emailServices');
 const MemoriesAlbum = require('../model/memories.album.model');
+
+exports.viewSharedAlbum = async (req, res) => {
+    try {
+        const currentUser = req.userId
+        const { token, albumId } = req.query;
+        const decodedToken = verifyToken(token);
+        if (!decodedToken.email || !albumId) {
+            return res.status(401).json(messageResponse.error(401, 'Invalid Token or missing parameters'));
+        }
+        if (currentUser !== decodedToken.userId) {
+            return res.status(403).json(messageResponse.error(403, 'Unauthorized access'));
+        }
+        const sharedAlbum = await MemoriesAlbum.findOne({ _id: albumId });
+        if (!sharedAlbum) {
+            return res.status(404).json(messageResponse.error(404, 'Shared album not found'));
+        }
+        const sharedImages = await Upload.find({ _id: { $in: sharedAlbum.images } });
+        res.status(200).json(messageResponse.success(200, 'Shared album and images fetched successfully', { sharedAlbum, sharedImages }));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json(messageResponse.error(500, 'An error occurred while fetching the shared album.'));
+    }
+};
+
+exports.shareAlbum = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { albumId, userEmail } = req.body;
+        const album = await MemoriesAlbum.findOne({ _id: albumId, user: userId });
+        if (!album) {
+            return res.status(404).json(messageResponse.error(404, 'Album not found'));
+        }
+        const recipientUser = await User.findOne({ email: userEmail });
+        if (!recipientUser) {
+            return res.status(404).json(messageResponse.error(404, 'Recipient user not found'));
+        }
+        const loginPageUrl = 'localhost:3000/user/view-album';
+        const token = generateToken(userEmail, recipientUser._id);
+        const urlWithToken = `${loginPageUrl}?token=${token}&albumId=${albumId}`;
+        const qrCodeDataURL = await qrcode.toDataURL(urlWithToken);
+        const qrCodeDirectory = path.join(__dirname, '..', 'uploads', 'qrcode');
+        await fs.mkdir(qrCodeDirectory, { recursive: true });
+        const qrCodeFileName = `${token}_qr_album.png`;
+        const qrCodeFilePath = path.join(qrCodeDirectory, qrCodeFileName);
+        await fs.writeFile(qrCodeFilePath, Buffer.from(qrCodeDataURL.split(',')[1], 'base64'));
+        await sendEmailURL(userEmail, [{ filename: qrCodeFileName, data: qrCodeFilePath, cid: qrCodeFileName }], urlWithToken);
+        res.status(200).json(messageResponse.success(200, 'Album shared successfully', { link: urlWithToken }));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json(messageResponse.error(500, 'An error occurred while sharing the album.'));
+    }
+};
 
 exports.deleteImageFromAlbum = async (req, res) => {
     try {

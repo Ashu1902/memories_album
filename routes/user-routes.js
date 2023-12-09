@@ -42,5 +42,7 @@ userRoutes.post('/shareImage', isAuth,validateShareImageEmail,handleValidationEr
 userRoutes.post('/create-album', isAuth, createAlbumValidation, handleValidationErrors, getUser.addImageInAlbum)
 userRoutes.post('/my-album', isAuth, myAlbumValidation, handleValidationErrors, getUser.getAlbum)
 userRoutes.post('/delete-image-album', isAuth, deleteImageAlbumValidation, handleValidationErrors, getUser.deleteImageFromAlbum)
+userRoutes.post('/share-album', isAuth, getUser.shareAlbum),
+userRoutes.get('/view-album', isAuth, getUser.viewSharedAlbum)
 
 module.exports = userRoutes;
