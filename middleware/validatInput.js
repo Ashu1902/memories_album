@@ -1,4 +1,30 @@
 const { body, validationResult } = require("express-validator");
+
+exports.myAlbumValidation = [
+  body('albumId')
+    .notEmpty()
+    .withMessage('Album ID is required')
+    .isString()
+    .withMessage('Album ID must be a string'),
+];
+
+exports.createAlbumValidation = [
+  body('imageIds')
+    .isArray({ min: 1 })
+    .withMessage('ImageIds must be an array with at least one element')
+    .custom((value) => value.every((id) => typeof id === 'string'))
+    .withMessage('All elements in imageIds must be strings'),
+  body('albumName')
+    .notEmpty()
+    .withMessage('Album name is required')
+    .isString()
+    .withMessage('Album name must be a string'),
+  body('passingDate')
+    .notEmpty()
+    .withMessage('Passing date is required')
+    .isISO8601()
+    .withMessage('Invalid ISO 8601 date format for passing date'),
+];
 exports.validateDeleteImage = [
   body("imageId").custom((value) => {
     if (!Array.isArray(value)) {
@@ -15,11 +41,6 @@ exports.validateDeleteImage = [
 ];
 
 exports.validateUploadImageFields = [
-  body("albumName")
-    .notEmpty()
-    .withMessage("Album name is required")
-    .isString()
-    .withMessage("Album name must be a string"),
   body("name")
     .notEmpty()
     .withMessage("Name is required")
@@ -36,11 +57,6 @@ exports.validateUploadImageFields = [
     .isIn([0, 1])
     .withMessage("give 0 for public and 1 for private")
     .toInt(),
-  body("passingDate")
-    .notEmpty()
-    .withMessage("Passing date is required")
-    .toDate()
-    .withMessage("Passing date must be a valid date"),
 ];
 
 exports.validateShareImageEmail = [

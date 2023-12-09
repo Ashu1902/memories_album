@@ -7,25 +7,38 @@ const {
     validateUserSignupInput, 
     validateLoginInput,
     validateShareImageEmail,
-    validateUploadImageFields, 
+    validateUploadImageFields,
+    createAlbumValidation,
+    myAlbumValidation,
     handleValidationErrors,
     validateDeleteImage } = require('../middleware/validatInput');
 const userRoutes = express.Router();
 
+//user routes
 userRoutes.post("/signup",validateUserSignupInput, handleValidationErrors, getUser.signup);
 userRoutes.post("/login", validateLoginInput, handleValidationErrors, getUser.login);
-userRoutes.get("/myqrcodes/:userId", isAuth, qrController.getUserQRCodes);
+userRoutes.post('/logout', isAuth,getUser.logout)
 userRoutes.put("/updateUser/:userId", isAuth,getUser.updateUser)
+
+//QR routes
+userRoutes.get("/myqrcodes/:userId", isAuth, qrController.getUserQRCodes);
 userRoutes.delete('/deleteqrcode/:qrcodeId', isAuth, getUser.deleteUserQRCode); 
 userRoutes.get('/myqrcodes', isAuth, qrController.getUserQRCodes);
+
+// uploads route
 userRoutes.post('/upload-image', isAuth, upload.array('imagePath', 5),validateUploadImageFields, handleValidationErrors, getUser.uploadImage);
-userRoutes.post('/logout', isAuth,getUser.logout)
-userRoutes.post('/shareImage', isAuth,validateShareImageEmail,handleValidationErrors,getUser.shareImage);
-userRoutes.post('/image', isAuth,getUser.sharedImage)
+
+//Image routes
 userRoutes.get('/getAllImages', isAuth, getUser.getAllImages)
 userRoutes.get('/myImages', isAuth, getUser.getUserUploadedImages)
 userRoutes.post('/imageLikes', isAuth, getUser.likeImage)
 userRoutes.post('/imageComments', isAuth, getUser.commentImage)
 userRoutes.post('/deleteImage', isAuth, validateDeleteImage, handleValidationErrors, getUser.deleteImages )
+userRoutes.post('/image', isAuth,getUser.sharedImage)
+userRoutes.post('/shareImage', isAuth,validateShareImageEmail,handleValidationErrors,getUser.shareImage);
+
+// Album routes
+userRoutes.post('/create-album', isAuth, createAlbumValidation, handleValidationErrors, getUser.addImageInAlbum)
+userRoutes.post('/my-album', isAuth, myAlbumValidation, handleValidationErrors, getUser.getAlbum)
 
 module.exports = userRoutes;

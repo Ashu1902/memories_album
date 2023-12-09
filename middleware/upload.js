@@ -5,7 +5,8 @@ const fs = require("fs");
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         const albumName = req.body.albumName;
-        const uploadPath = `uploads/albums/${albumName}/`;
+        const usersId = req.userId;
+        const uploadPath = `uploads/images/${usersId}/`;
 
         // Create directory if it doesn't exist
         if (!fs.existsSync(uploadPath)) {

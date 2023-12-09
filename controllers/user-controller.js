@@ -11,13 +11,70 @@ const Upload = require('../model/Upload')
 const { sendEmailURL } = require('../services/emailServices');
 const MemoriesAlbum = require('../model/memories.album.model');
 
+exports.getAlbum = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const albumId = req.body.albumId;
+
+        const album = await MemoriesAlbum.findOne({ _id: albumId, user: userId }).populate({
+            path: 'images',
+            match: { isDeleted: false },
+        });
+        if (!album) {
+            return res.status(404).json(messageResponse.error(404, 'Album not found'));
+        }
+        res.status(200).json(messageResponse.success(200, 'Album with non-deleted images fetched successfully', album));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json(messageResponse.error(500, 'An error occurred while fetching the album.'));
+    }
+};
+
+exports.addImageInAlbum = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { imageIds, albumName, passingDate } = req.body;
+        if (!Array.isArray(imageIds) || imageIds.length === 0) {
+            return res.status(400).json(messageResponse.error(400, 'Invalid value for imageIds.'));
+        }
+        let existingAlbum = await MemoriesAlbum.findOne({ albumName, user: userId });
+        if (!existingAlbum) {
+            existingAlbum = await MemoriesAlbum.create({
+                albumName,
+                passingDate,
+                user: userId,
+                images: []
+            });
+        }
+        const images = await Upload.find({ _id: { $in: imageIds }, user: userId, isDeleted: false });
+        if (images.length === 0) {
+            return res.status(404).json(messageResponse.error(404, 'No images found with the provided imageIds.'));
+        }
+        const uniqueImages = images.filter(image => !existingAlbum.images.includes(image._id.toString()));
+        if (uniqueImages.length === 0) {
+            return res.status(400).json(messageResponse.error(400, 'images are already added to the album.'));
+        }
+        existingAlbum.images = [...existingAlbum.images, ...uniqueImages.map(image => image._id)];
+        await existingAlbum.save();
+        const uploadDirectory = path.join(__dirname, '..', 'uploads', 'Albums', userId, albumName);
+        await fs.mkdir(uploadDirectory, { recursive: true });
+        for (const image of uniqueImages) {
+            const imagePath = path.join(uploadDirectory, `${image._id.toString()}.jpg`);
+            await fs.copyFile(image.imagePath, imagePath);
+        }
+        res.status(200).json(messageResponse.success(200, 'Images added to the album successfully', existingAlbum));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json(messageResponse.error(500, 'An error occurred while updating the album.'));
+    }
+};
+
 exports.shareImage = async (req, res) => {
     const albumId = req.body.albumId;
     const imageId = req.body.imageId;
     const authenticatedUserId = req.body.id;
     const userId = req.userId;
     const userEmail = req.body.email;
-
     if (authenticatedUserId !== userId) {
         return res.status(403).json(messageResponse.error(403, 'You can only share images that you have uploaded'));
     }
@@ -28,7 +85,6 @@ exports.shareImage = async (req, res) => {
             if (!album) {
                 return res.status(404).json(messageResponse.error(404, 'Album not found'));
             }
-            // Check if any image in the album is not deleted
             const isAlbumValid = album.images.some(image => !image.isDeleted);
             if (!isAlbumValid) {
                 return res.status(400).json(messageResponse.error(400, 'All images in the album are deleted'));
@@ -48,12 +104,10 @@ exports.shareImage = async (req, res) => {
             await fs.writeFile(qrCodeFilePath, Buffer.from(qrCodeDataURL.split(',')[1], 'base64'));
             await sendEmailURL(userEmail, [{ filename: qrCodeFileName, data: qrCodeFilePath, cid: qrCodeFileName }], link);
         } else if (imageId) {
-            // Share a single image
             const image = await Upload.findById(imageId);
             if (!image) {
                 return res.status(404).json(messageResponse.error(404, 'Image not found'));
             }
-            // Check if the image is not deleted
             if (image.isDeleted) {
                 return res.status(400).json(messageResponse.error(400, 'you can not share the deleted image'));
             }
@@ -81,43 +135,25 @@ exports.shareImage = async (req, res) => {
     }
 };
 
-exports.uploadImage =async (req, res) => {
+exports.uploadImage = async (req, res) => {
     try {
         const userId = req.userId;
-        const { name, description, image_type, albumName, passingDate } = req.body;
+        const { name, description, image_type } = req.body;
 
         if (!req.files || req.files.length === 0) {
             return res.status(400).json(messageResponse.error(400, 'Please select at least one image.'));
         }
-        // Check if an album with the same name already exists for the user
-        let existingAlbum = await MemoriesAlbum.findOne({ albumName, user: userId });
-        if (!existingAlbum) {
-            // If no existing album, create a new one
-            existingAlbum = await MemoriesAlbum.create({
-                albumName,
-                passingDate,
-                user: userId
-            });
-        }
-        // Create uploads in the Upload model
         const savedUploads = await Upload.create(req.files.map(file => ({
             name,
             description,
             imagePath: file.path,
             user: userId,
-            image_type,
-            albumName,
-            passingDate
+            image_type
         })));
-        // Extract the IDs of the saved uploads
-        const uploadIds = savedUploads.map(upload => upload._id);
-        // Add the IDs of the new uploads to the existing album's images array
-        existingAlbum.images = [...existingAlbum.images, ...uploadIds];
-        await existingAlbum.save();
-        res.status(200).json(messageResponse.success(200, 'Images uploaded to the album successfully', existingAlbum));
+        res.status(200).json(messageResponse.success(200, 'Images uploaded successfully', savedUploads));
     } catch (error) {
         console.error(error);
-        res.status(500).json(messageResponse.error(500, 'An error occurred while uploading images and updating album'));
+        res.status(500).json(messageResponse.error(500, 'An error occurred while uploading images.'));
     }
 };
 
@@ -128,36 +164,24 @@ exports.deleteImages = async (req, res) => {
         if (!Array.isArray(imageId) || imageId.length === 0 || imageId.some(id => typeof id !== 'string')) {
             return res.status(400).json(messageResponse.error(400, 'Invalid value for imageId.'));
         }
-
-        // Find images in the Upload model with the provided imageId(s)
         const images = await Upload.find({ _id: { $in: imageId } });
-        // Filter out images that are already deleted
         const notDeletedImages = images.filter(image => !image.isDeleted);
         if (notDeletedImages.length === 0) {
             return res.status(404).json(messageResponse.error(404, 'No valid images found with the provided imageId(s).'));
         }
-
-        // Update isDeleted to true for the notDeletedImages in the Upload model
         await Upload.updateMany(
             { _id: { $in: notDeletedImages.map(image => image._id) } },
             { $set: { isDeleted: true } }
         );
-
-        // Delete images from the local directory
-        const uploadDirectory = path.join(__dirname, '..'); // Adjust the path as needed
-
+        const uploadDirectory = path.join(__dirname, '..'); 
         for (const image of notDeletedImages) {
-            const imagePath = path.join(uploadDirectory, image.imagePath);
-            
+            const imagePath = path.join(uploadDirectory, image.imagePath);            
             try {
-                // Attempt to unlink (delete) the file
                 await fs.unlink(imagePath);
             } catch (error) {
-                // Handle error (e.g., log it), but continue with other images
                 console.error(`Error deleting file ${imagePath}: ${error.message}`);
             }
         }
-
         res.status(200).json(messageResponse.success(200, 'Images deleted successfully'));
     } catch (error) {
         console.error(error);
@@ -170,21 +194,16 @@ exports.commentImage = async (req, res) => {
         const imageId = req.query.imageId;
         const userId = req.userId;
         const commentText = req.body.commentText;
-
-        // Check if the image exists
         const image = await Upload.findById(imageId);
         if (!image) {
             return res.status(404).json(messageResponse.error(404, 'Image not found'));
         }
-
-        // Add the user's comment to the image
         const newComment = {
             user: userId,
             text: commentText
         };
         image.comments.push(newComment);
         await image.save();
-
         res.status(200).json(messageResponse.success(200, 'Comment added successfully', newComment));
     } catch (error) {
         console.error(error);
@@ -196,22 +215,15 @@ exports.likeImage = async (req, res) => {
     try {
         const imageId = req.query.imageId;
         const userId = req.userId;
-
-        // Check if the image exists
         const image = await Upload.findById(imageId);
         if (!image) {
             return res.status(404).json(messageResponse.error(404, 'Image not found'));
         }
-
-        // Check if the user has already liked the image
         if (image.likes.some(like => like.user.toString() === userId)) {
             return res.status(400).json(messageResponse.error(400, 'You have already liked this image.'));
         }
-
-        // Add the user's like to the image
         image.likes.push({ user: userId });
         await image.save();
-
         res.status(200).json(messageResponse.success(200, 'Image liked successfully', image));
     } catch (error) {
         console.error(error);
@@ -249,27 +261,22 @@ exports.getAllImages = async (req, res) => {
 exports.sharedImage = async (req, res) => {
     const imageId = req.query.imageId;
     const albumId = req.query.albumId;
-
     try {
         if (imageId) {
             const image = await Upload.findById(imageId);
             if (!image) {
                 return res.status(404).json(messageResponse.error(404, 'Image does not exist'));
             }
-
             res.status(200).json(messageResponse.success(200, 'Image fetched successfully', image));
         } else if (albumId) {
             const album = await MemoriesAlbum.findById(albumId).populate('images');
             if (!album) {
                 return res.status(404).json(messageResponse.error(404, 'Album not found'));
             }
-            // Check if any image in the album is not deleted
             const validImages = album.images.filter(image => !image.isDeleted);
-
             if (validImages.length === 0) {
                 return res.status(404).json(messageResponse.error(404, 'No valid images found in the album'));
             }
-
             res.status(200).json(messageResponse.success(200, 'Images from album fetched successfully', validImages));
         } else {
             return res.status(400).json(messageResponse.error(400, 'Missing required parameters'));
@@ -284,7 +291,6 @@ exports.sharedImage = async (req, res) => {
 exports.deleteUserQRCode = async (req, res) => {
     try {
         const qrcodeId = req.params.qrcodeId;
-        // Get the user ID from the authenticated user's token
         const userId = req.userId;
         const deletedQRCode = await QRCode.findByIdAndRemove(qrcodeId);
         if (!deletedQRCode) {
@@ -302,17 +308,14 @@ exports.deleteUserQRCode = async (req, res) => {
 
 exports.getUserQRCodes = async (req, res) => {
     try {
-        const userIdParam = req.params.userId; // Get the user ID from request parameters
+        const userIdParam = req.params.userId; 
         const token = req.headers.authorization;
         const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
         const userId = decodedToken.userId;
-        // Check if the user ID from request parameters matches the authenticated user's ID
         if (userIdParam !== userId) {
             return res.status(403).json(messageResponse.error(403, 'Unauthorized access'));
         }
-        // Find all QR codes associated with the user
         const qrCodes = await QRCode.find({ userId: userId });
-        // Return the list of QR codes in the response
         res.status(200).json(messageResponse.success(200, 'User QR codes fetched successfully', qrCodes));
     } catch (error) {
         console.error(error);
@@ -323,22 +326,17 @@ exports.getUserQRCodes = async (req, res) => {
 exports.updateUser = async (req, res) => {
     try {
         const fieldsToUpdate = req.body;
-        const userIdParam = req.params.userId; // Get the user ID from request parameters
+        const userIdParam = req.params.userId; 
         const token = req.headers.authorization;
         const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
         const userId = decodedToken.userId;
-        // Check if the user ID from request parameters matches the authenticated user's ID
         if (userIdParam !== userId) {
             return res.status(403).json(messageResponse.error(403, 'Unauthorized access'));
         }
-        // Check if a new password is provided in the request
         if (fieldsToUpdate.password) {
-            // Hash the new password using bcrypt
             const hashedPassword = await bcrypt.hash(fieldsToUpdate.password, 12);
-            // Update the 'password' field in 'fieldsToUpdate' with the hashed password
             fieldsToUpdate.password = hashedPassword;
         }
-        // Prevent email update and send a message
         if (fieldsToUpdate.email) {
             return res.status(400).json(messageResponse.error(400, 'You cannot update your email address.'));
         }
