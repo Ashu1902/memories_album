@@ -192,21 +192,27 @@ exports.uploadImage = async (req, res) => {
 
 exports.deleteImages = async (req, res) => {
     try {
+        const userId = req.userId;
         const { imageId } = req.body;
 
         if (!Array.isArray(imageId) || imageId.length === 0 || imageId.some(id => typeof id !== 'string')) {
             return res.status(400).json(messageResponse.error(400, 'Invalid value for imageId.'));
         }
-        const images = await Upload.find({ _id: { $in: imageId } });
+
+        const images = await Upload.find({ _id: { $in: imageId }, user: userId, isDeleted: false });
         const notDeletedImages = images.filter(image => !image.isDeleted);
+
         if (notDeletedImages.length === 0) {
             return res.status(404).json(messageResponse.error(404, 'No valid images found with the provided imageId(s).'));
         }
+
         await Upload.updateMany(
             { _id: { $in: notDeletedImages.map(image => image._id) } },
             { $set: { isDeleted: true } }
         );
+
         const uploadDirectory = path.join(__dirname, '..'); 
+
         for (const image of notDeletedImages) {
             const imagePath = path.join(uploadDirectory, image.imagePath);            
             try {
@@ -215,12 +221,14 @@ exports.deleteImages = async (req, res) => {
                 console.error(`Error deleting file ${imagePath}: ${error.message}`);
             }
         }
+
         res.status(200).json(messageResponse.success(200, 'Images deleted successfully'));
     } catch (error) {
         console.error(error);
         res.status(500).json(messageResponse.error(500, 'An error occurred while deleting images.'));
     }
 };
+
 
 exports.commentImage = async (req, res) => {
     try {
