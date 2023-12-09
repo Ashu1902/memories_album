@@ -11,6 +11,39 @@ const Upload = require('../model/Upload')
 const { sendEmailURL } = require('../services/emailServices');
 const MemoriesAlbum = require('../model/memories.album.model');
 
+exports.deleteImageFromAlbum = async (req, res) => {
+    try {
+      const userId = req.userId;
+      const { albumId, imageIds } = req.body;
+      const album = await MemoriesAlbum.findOne({ _id: albumId, user: userId });
+      if (!album) {
+        return res.status(404).json(messageResponse.error(404, 'Album not found'));
+      }
+      if (!Array.isArray(imageIds)) {
+        return res.status(400).json(messageResponse.error(400, 'Invalid value for imageIds. It must be an array.'));
+      }
+      const deletedImageIds = [];
+      for (const imageId of imageIds) {
+        const imageIndex = album.images.indexOf(imageId);      
+        if (imageIndex !== -1) {
+          album.images.splice(imageIndex, 1);
+          const image = await Upload.findById(imageId);
+          const imagePath = path.join(__dirname, '..', 'uploads', 'Albums', userId, album.albumName, `${imageId}.jpg`);
+          await fs.unlink(imagePath);      
+          deletedImageIds.push(imageId);
+        }
+      }  
+      if (deletedImageIds.length === 0) {
+        return res.status(404).json(messageResponse.error(404, 'No valid images found in the album for deletion.'));
+      }  
+      await album.save();  
+      res.status(200).json(messageResponse.success(200, 'Images deleted from the album successfully', { deletedImageIds, album }));
+    } catch (error) {
+      console.error(error);
+      res.status(500).json(messageResponse.error(500, 'An error occurred while deleting the images from the album.'));
+    }
+  };
+
 exports.getAlbum = async (req, res) => {
     try {
         const userId = req.userId;

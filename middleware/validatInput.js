@@ -1,5 +1,27 @@
 const { body, validationResult } = require("express-validator");
 
+exports.deleteImageAlbumValidation = [
+  body('albumId')
+    .notEmpty()
+    .withMessage('Album ID is required')
+    .isString()
+    .withMessage('Album ID must be a string'),
+  body('imageIds')
+    .isArray()
+    .withMessage('Image IDs must be an array')
+    .notEmpty()
+    .withMessage('Image IDs are required')
+    .custom((value) => {
+      if (!Array.isArray(value)) {
+        throw new Error('Image IDs must be an array.');
+      }
+      if (value.length === 0) {
+        throw new Error('Image IDs cannot be empty.');
+      }
+      return true;
+    }),
+];
+
 exports.myAlbumValidation = [
   body('albumId')
     .notEmpty()
